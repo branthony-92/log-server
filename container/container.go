@@ -2,15 +2,18 @@ package container
 
 import (
 	broker "github.com/branthony-92/amqp-client"
+	"github.com/branthony-92/log-server/storage"
 )
 
 type Container interface {
 	GetBroker() broker.MessageBroker
+	GetStorage() storage.LogStorage
 	Shutdown()
 }
 
 type container struct {
-	broker broker.MessageBroker
+	broker  broker.MessageBroker
+	storage storage.LogStorage
 }
 
 func InitContainer(broker broker.MessageBroker) (Container, error) {
@@ -19,6 +22,10 @@ func InitContainer(broker broker.MessageBroker) (Container, error) {
 
 func (c *container) GetBroker() broker.MessageBroker {
 	return c.broker
+}
+
+func (c *container) GetStorage() storage.LogStorage {
+	return c.storage
 }
 
 func (c *container) Shutdown() {
