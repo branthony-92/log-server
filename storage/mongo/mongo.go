@@ -14,8 +14,7 @@ import (
 )
 
 const (
-	dbName         = "Log-Database"
-	collectionName = "logs"
+	dbName = "Log-Database"
 )
 
 type mongoStorage struct {
@@ -40,54 +39,92 @@ func NewMongoStorage(cfg config.StorageConfig) (*mongoStorage, error) {
 	return &storage, nil
 }
 
-func (s *mongoStorage) UploadLog(ctx context.Context, log models.LogMessage) error {
+func (s *mongoStorage) UploadLog(ctx context.Context, log models.LogUploadRequest) error {
 
 	collection := s.client.Database(dbName).Collection(log.Source)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if _, err := collection.InsertOne(ctx, &log); err != nil {
+	if _, err := collection.InsertOne(ctx, &log.Message); err != nil {
 		return fmt.Errorf("Failed to upload logs, %v", err)
 	}
 
 	return nil
 }
 
-func (s *mongoStorage) FindLog(ctx context.Context, logID string) (*models.LogMessage, error) {
-	collection := s.client.Database(dbName).Collection(collectionName)
+func (s *mongoStorage) FindLogsByDate(ctx context.Context, req models.LogRetrievalRequestDate) ([]models.LogMessage, error) {
+	collection := s.client.Database(dbName).Collection(req.Source)
 
 	filter := bson.D{
-		{Key: "id", Value: logID},
+		{
+			Key: "$and",
+			Value: bson.A{
+				bson.D{{Key: "$timestamp", Value: bson.D{{Key: "$gte", Value: req.RangeStart}}}},
+				bson.D{{Key: "$timestamp", Value: bson.D{{Key: "$lte", Value: req.RangeEnd}}}},
+			},
+		},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	result := collection.FindOne(ctx, filter)
+	cursor, err := collection.Find(ctx, filter)
+	if err != nil {
+		return []models.LogMessage{}, fmt.Errorf("could not retrieve logs, %v", err)
+	}
+	defer cursor.Close(context.TODO())
 
-	var log models.LogMessage
+	logs := make([]models.LogMessage, 0)
 
-	if err := result.Decode(&log); err != nil {
-		return nil, fmt.Errorf("Failed to retrieve log, %v", err)
+	for cursor.Next(context.TODO()) {
+		var log models.LogMessage
+		if err := cursor.Decode(&log); err != nil {
+			return []models.LogMessage{}, fmt.Errorf("could not decode log, %v", err)
+		}
+		logs = append(logs, log)
 	}
 
-	return &log, nil
+	return logs, nil
 }
 
-func (s *mongoStorage) DeleteLog(ctx context.Context, logID string) error {
-	collection := s.client.Database(dbName).Collection(collectionName)
+func (s *mongoStorage) DeleteLogsByDate(ctx context.Context, req models.LogRetrievalRequestDate) error {
+	collection := s.client.Database(dbName).Collection(req.Source)
 
 	filter := bson.D{
-		{Key: "id", Value: logID},
+		{
+			Key: "$and",
+			Value: bson.A{
+				bson.D{{Key: "$timestamp", Value: bson.D{{Key: "$gte", Value: req.RangeStart}}}},
+				bson.D{{Key: "$timestamp", Value: bson.D{{Key: "$lte", Value: req.RangeEnd}}}},
+			},
+		},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if _, err := collection.DeleteOne(ctx, filter); err != nil {
-		return fmt.Errorf("Failed to delete log, %v", err)
+	if _, err := collection.DeleteMany(ctx, filter); err != nil {
+		return fmt.Errorf("Failed to delete logs, %v", err)
 	}
 
+	return nil
+}
+
+func (s *mongoStorage) DeleteLogsByID(ctx context.Context, req models.LogRetrievalRequestID) error {
+	collection := s.client.Database(dbName).Collection(req.Source)
+
+	for _, id := range req.Source {
+		filter := bson.D{
+			{Key: "id", Value: id},
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if _, err := collection.DeleteOne(ctx, filter); err != nil {
+			return fmt.Errorf("Failed to delete log, %v", err)
+		}
+	}
 	return nil
 }

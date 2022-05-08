@@ -36,9 +36,17 @@ func (s *logUploadService) ServiceKey() string {
 
 func (s *logUploadService) ServiceHandler(msg broker.Message) {
 	storage := s.cont.GetStorage()
-	var logMsg models.LogMessage
+	var logMsg models.LogUploadRequest
 
 	if err := msg.GetBody(&logMsg); err != nil {
+		return
+	}
+
+	if err := logMsg.Validate(); err != nil {
+		return
+	}
+
+	if !logMsg.StoreLog() {
 		return
 	}
 

@@ -14,9 +14,10 @@ const (
 )
 
 type LogStorage interface {
-	UploadLog(ctx context.Context, log models.LogMessage) error
-	FindLog(ctx context.Context, logID string) (*models.LogMessage, error)
-	DeleteLog(ctx context.Context, logID string) error
+	UploadLog(ctx context.Context, log models.LogUploadRequest) error
+	FindLogsByDate(ctx context.Context, req models.LogRetrievalRequestDate) ([]models.LogMessage, error)
+	DeleteLogsByDate(ctx context.Context, req models.LogRetrievalRequestDate) error
+	DeleteLogsByID(ctx context.Context, req models.LogRetrievalRequestID) error
 }
 
 func InitStorage(cfg config.Config) (LogStorage, error) {
