@@ -1,7 +1,10 @@
 package container
 
 import (
+	"fmt"
+
 	broker "github.com/branthony-92/amqp-client"
+	"github.com/branthony-92/log-server/config"
 	"github.com/branthony-92/log-server/storage"
 )
 
@@ -16,8 +19,23 @@ type container struct {
 	storage storage.LogStorage
 }
 
-func InitContainer(broker broker.MessageBroker) (Container, error) {
-	return &container{broker: broker}, nil
+func InitContainer(cfg config.Config) (Container, error) {
+
+	broker, err := broker.NewMessageBroker(cfg.Messaging.URL)
+	if err != nil {
+		return nil, fmt.Errorf("could not init container, %v", err)
+	}
+
+	storage, err := storage.InitStorage(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("could not init container, %v", err)
+	}
+
+	c := container{
+		broker: broker, storage: storage,
+	}
+
+	return &c, nil
 }
 
 func (c *container) GetBroker() broker.MessageBroker {

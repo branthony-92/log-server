@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/branthony-92/log-server/config"
-	"github.com/branthony-92/log-server/log"
+	"github.com/branthony-92/log-server/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -22,11 +22,10 @@ type mongoStorage struct {
 	client *mongo.Client
 }
 
-func NewMongoStorage(cfg config.Config) (*mongoStorage, error) {
+func NewMongoStorage(cfg config.StorageConfig) (*mongoStorage, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	mongoURI := fmt.Sprintf("mongodb+srv://%s:%d", cfg.Storage.Host, cfg.Storage.Port)
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.URL))
 	if err != nil {
 		return nil, err
 	}
@@ -41,27 +40,21 @@ func NewMongoStorage(cfg config.Config) (*mongoStorage, error) {
 	return &storage, nil
 }
 
-func (s *mongoStorage) UploadLogs(ctx context.Context, logs []log.LogMessage) error {
+func (s *mongoStorage) UploadLog(ctx context.Context, log models.LogMessage) error {
 
-	collection := s.client.Database(dbName).Collection(collectionName)
+	collection := s.client.Database(dbName).Collection(log.Source)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	docs := make([]interface{}, len(logs))
-
-	for i, log := range logs {
-		docs[i] = &log
-	}
-
-	if _, err := collection.InsertMany(ctx, docs); err != nil {
+	if _, err := collection.InsertOne(ctx, &log); err != nil {
 		return fmt.Errorf("Failed to upload logs, %v", err)
 	}
 
 	return nil
 }
 
-func (s *mongoStorage) FindLog(ctx context.Context, logID string) (*log.LogMessage, error) {
+func (s *mongoStorage) FindLog(ctx context.Context, logID string) (*models.LogMessage, error) {
 	collection := s.client.Database(dbName).Collection(collectionName)
 
 	filter := bson.D{
@@ -73,7 +66,7 @@ func (s *mongoStorage) FindLog(ctx context.Context, logID string) (*log.LogMessa
 
 	result := collection.FindOne(ctx, filter)
 
-	var log log.LogMessage
+	var log models.LogMessage
 
 	if err := result.Decode(&log); err != nil {
 		return nil, fmt.Errorf("Failed to retrieve log, %v", err)
