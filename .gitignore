@@ -1,5 +1,5 @@
 log-server.exe
-.vscode/settings.json
+.vscode/*
 .env
 dockerfile
 dockerfile
