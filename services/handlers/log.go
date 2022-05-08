@@ -50,6 +50,9 @@ func (s *logUploadService) ServiceHandler(msg broker.Message) {
 		return
 	}
 
+	if logMsg.Message.Severity == models.Debug {
+		logMsg.Source = fmt.Sprintf("%s-%s", logMsg.Source, models.Debug)
+	}
 	fmt.Printf("log received: %v\n", logMsg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), logUploadTimeout)
